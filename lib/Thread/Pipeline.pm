@@ -1,6 +1,6 @@
 package Thread::Pipeline;
 {
-  $Thread::Pipeline::VERSION = '0.001';
+  $Thread::Pipeline::VERSION = '0.002';
 }
 
 # $Id$
@@ -31,8 +31,19 @@ sub new {
     };
     bless $self, $class;
 
-    while ( my ($id, $info) = each %{ $blocks || {} } ) {
-        $self->add_block( $id => $info );
+    if ( ref $blocks eq 'HASH' ) {
+        while ( my ($id, $info) = each %$blocks ) {
+            $self->add_block( $id => $info );
+        }
+    }
+    elsif ( ref $blocks eq 'ARRAY' ) {
+        for my $i ( 0 .. @$blocks/2 - 1 ) {
+            my ( $id, $info, $next_id ) = @$blocks[ $i*2 .. $i*2+2 ];
+            my %block = %$info;
+            $block{main_input} //= 1  if $i == 0;
+            $block{out} //= $next_id // '_out';
+            $self->add_block( $id => \%block );
+        }
     }
 
     return $self;
@@ -54,9 +65,12 @@ sub add_block {
             # get incoming data block
             my $in_data = $queue->dequeue();
 
-            # process it (even if undefined!)
+            # process it
             # ??? eval?
-            my $out_data = $block_info->{sub}->( $in_data, $self );
+            my $out_data;
+            if ( defined $in_data || $block_info->{need_finalize} ) {
+                $out_data = $block_info->{sub}->( $in_data, $self );
+            }
 
             # send result to next block
             if ( defined $out_data && $block_info->{out} ) {
@@ -71,8 +85,11 @@ sub add_block {
         $threads_num --;
 
         # send undef to next block
-        if ( !$threads_num && $block_info->{out} && $block_info->{out} ne '_out' ) {
-            $self->no_more_data($block_info->{out});
+        if ( !$threads_num ) {
+            $block_info->{post_sub}->()  if $block_info->{post_sub};
+            if ( $block_info->{out} && $block_info->{out} ne '_out' ) {
+                $self->no_more_data($block_info->{out});
+            }
         }
 
         return;
@@ -93,6 +110,7 @@ sub enqueue {
     my ($self, $data, %opt) = @_;
 
     my $ids = $opt{block} || $self->{input_ids};
+
     for my $block_id ( @{ ref $ids ? $ids : [$ids]  } ) {
         if ( $block_id eq '_out' ) {
             $self->{out_queue}->enqueue($data);
@@ -166,14 +184,14 @@ Thread::Pipeline - multithreaded pipeline manager
 
 =head1 VERSION
 
-version 0.001
+version 0.002
 
 =head1 SYNOPSIS
 
     my %blocks = (
         map1 => { sub => \&mapper, num_threads => 2, main_input => 1, out => 'map2' },
         map2 => { sub => \&another_mapper, num_threads => 5, out => [ 'log', 'reduce' ] },
-        reduce => { sub => \&reducer, out => '_out' },
+        reduce => { sub => \&reducer, need_finalize => 1, out => '_out' },
         log => { sub => \&logger },
     );
 
@@ -195,10 +213,15 @@ version 0.001
 
 =head2 new
 
-    my $pl = Thread::Pipeline->new( \%block_descriptions );
+    my $pl = Thread::Pipeline->new( $blocks_description );
 
-Creates pipeline object
-Initializes blocks if defined (see add_block)
+Constructor.
+Creates pipeline object, initializes blocks if defined.
+
+Blocks description is a hashref { $id => $descr, ... }
+or an arrayref [ $id => $lite_descr, ... ] (see add_block).
+For arrayrefs constructor assumes direct block chain
+and automatically adds 'main_input' and 'out' fields.
 
 =head2 add_block
 
@@ -213,10 +236,12 @@ Add new block to the pipeline.
 Worker threads and associated incoming queue would be created.
 
 Block info is a hash containing keys:
-    * sub (required) - worker coderef 
+    * sub - worker coderef (required)
     * num_threads - number of parallel threads of worker, default 1
     * out - id of block where processed data should be sent, use '_out' for pipeline's main output
     * main_input - mark this block as default for enqueue
+    * post_sub - code that run when all theads ends
+    * need_finalize - run worker with undef when queue is finished
 
 Worker is a sub that will be executed with two params: &worker_sub($data, $pipeline).
 When $data is undefined that means that it is latest data item in sequence.
