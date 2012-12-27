@@ -1,9 +1,9 @@
 package Thread::Pipeline;
-{
-  $Thread::Pipeline::VERSION = '0.002';
+BEGIN {
+  $Thread::Pipeline::VERSION = '0.003';
 }
 
-# $Id$
+# $Id: Pipeline.pm 14 2012-12-27 18:04:55Z xliosha@gmail.com $
 
 # NAME: Thread::Pipeline
 # ABSTRACT: multithreaded pipeline manager
@@ -63,18 +63,21 @@ sub add_block {
     my $thread_sub = sub {
         while (1) {
             # get incoming data block
-            my $in_data = $queue->dequeue();
+            my ($in_data) = $queue->dequeue();
 
             # process it
-            # ??? eval?
-            my $out_data;
+            my @out_data;
             if ( defined $in_data || $block_info->{need_finalize} ) {
-                $out_data = $block_info->{sub}->( $in_data, $self );
+                eval { @out_data = $block_info->{sub}->( $in_data, $self ); 1 }
+                or carp "Worker '$block_id' died in thread tid=" . threads->tid() . ": $@";
             }
 
-            # send result to next block
-            if ( defined $out_data && $block_info->{out} ) {
-                $self->enqueue( $out_data, block => $block_info->{out} );
+            # send results to next block
+            if ( $block_info->{out} ) {
+                for my $item ( @out_data ) {
+                    next if !defined $item;
+                    $self->enqueue( $item, block => $block_info->{out} );
+                }
             }
 
             # finish work if incoming data was undefined
@@ -176,6 +179,7 @@ sub get_threads_num {
 1;
 
 __END__
+
 =pod
 
 =head1 NAME
@@ -184,7 +188,7 @@ Thread::Pipeline - multithreaded pipeline manager
 
 =head1 VERSION
 
-version 0.002
+version 0.003
 
 =head1 SYNOPSIS
 
@@ -236,9 +240,11 @@ Add new block to the pipeline.
 Worker threads and associated incoming queue would be created.
 
 Block info is a hash containing keys:
+
     * sub - worker coderef (required)
     * num_threads - number of parallel threads of worker, default 1
-    * out - id of block where processed data should be sent, use '_out' for pipeline's main output
+    * out - id of block where processed data should be sent,
+        use '_out' for pipeline's main output
     * main_input - mark this block as default for enqueue
     * post_sub - code that run when all theads ends
     * need_finalize - run worker with undef when queue is finished
@@ -251,7 +257,9 @@ When $data is undefined that means that it is latest data item in sequence.
     $pl->enqueue( $data, %opts );
 
 Puts the data into block's queue
+
 Options:
+
     * block - id of block, default is pipeline's main input block
 
 =head2 no_more_data
@@ -281,4 +289,3 @@ This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
 
 =cut
-
