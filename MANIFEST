@@ -12,3 +12,4 @@ t/multi_return.t
 t/need_finalize.t
 t/num_threads.t
 t/release-pod-coverage.t
+t/release-pod-syntax.t

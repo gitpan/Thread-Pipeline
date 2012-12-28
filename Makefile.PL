@@ -2,38 +2,37 @@
 use strict;
 use warnings;
 
-BEGIN { require 5.010; }
+use 5.010;
 
-use ExtUtils::MakeMaker 6.31;
+use ExtUtils::MakeMaker 6.30;
 
 
 
 my %WriteMakefileArgs = (
-  'ABSTRACT' => 'multithreaded pipeline manager',
-  'AUTHOR' => 'liosha <liosha@cpan.org>',
-  'BUILD_REQUIRES' => {
-    'Test::More' => '0',
-    'YAML' => '0'
+  "ABSTRACT" => "multithreaded pipeline manager",
+  "AUTHOR" => "liosha <liosha\@cpan.org>",
+  "BUILD_REQUIRES" => {
+    "Test::More" => 0
   },
-  'CONFIGURE_REQUIRES' => {
-    'ExtUtils::MakeMaker' => '6.31'
+  "CONFIGURE_REQUIRES" => {
+    "ExtUtils::MakeMaker" => "6.30"
   },
-  'DISTNAME' => 'Thread-Pipeline',
-  'EXE_FILES' => [],
-  'LICENSE' => 'perl',
-  'NAME' => 'Thread::Pipeline',
-  'PREREQ_PM' => {
-    'Carp' => '0',
-    'Thread::Queue::Any' => '0',
-    'strict' => '0',
-    'threads' => '0',
-    'threads::shared' => '0',
-    'utf8' => '0',
-    'warnings' => '0'
+  "DISTNAME" => "Thread-Pipeline",
+  "EXE_FILES" => [],
+  "LICENSE" => "perl",
+  "NAME" => "Thread::Pipeline",
+  "PREREQ_PM" => {
+    "Carp" => 0,
+    "Thread::Queue::Any" => 0,
+    "strict" => 0,
+    "threads" => 0,
+    "threads::shared" => 0,
+    "utf8" => 0,
+    "warnings" => 0
   },
-  'VERSION' => '0.003',
-  'test' => {
-    'TESTS' => 't/*.t'
+  "VERSION" => "0.004",
+  "test" => {
+    "TESTS" => "t/*.t"
   }
 );
 
